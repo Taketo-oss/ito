@@ -3,79 +3,91 @@ from supabase import create_client, Client
 import random
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. 高コントラスト & モダンゲーム UI ---
+# --- 1. 家計簿アプリ風 UIカスタムCSS ---
 st.set_page_config(page_title="ito Mobile", layout="centered")
-st.markdown("""
-    <style>
-    /* 全体の背景：色が飛ばないよう、わずかに色をつけたグレー */
-    .stApp { background-color: #f0f2f5; }
-    
-    /* 文字色の強制固定（視認性向上） */
-    html, body, [data-testid="stWidgetLabel"], .stMarkdown p {
-        color: #1a1a1a !important;
-    }
 
-    /* ボタン：はっきりした輪郭と立体感 */
-    .stButton button {
+# 家計簿アプリのカラーパレットを定義
+PRIMARY = "#4DA6FF"   # スカイブルー
+BG_DARK = "#0D1B2A"   # 深い紺色
+CARD_BG = "#1B263B"   # 少し明るい紺色
+TEXT_COLOR = "#E0E1DD" # 青みのある白
+
+st.markdown(f"""
+    <style>
+    /* 全体の背景と文字色 */
+    .stApp {{ background-color: {BG_DARK}; color: {TEXT_COLOR}; }}
+    
+    /* 標準テキストの色の強制 */
+    html, body, [data-testid="stWidgetLabel"], .stMarkdown p, h1, h2, h3 {{
+        color: {TEXT_COLOR} !important;
+    }}
+
+    /* ボタン：家計簿アプリ風のスカイブルー基調 */
+    .stButton button {{
         width: 100%;
-        border-radius: 16px;
+        border-radius: 12px;
         height: 3.8em;
         font-weight: 800;
-        font-size: 1.05em;
-        border: 2px solid #333333 !important; /* 濃い境界線で色飛び防止 */
-        background-color: #ffffff;
-        box-shadow: 0 4px 0 #333333; /* 立体的な影 */
+        border: 2px solid {PRIMARY} !important;
+        background-color: {CARD_BG};
+        color: {PRIMARY} !important;
+        box-shadow: 0 4px 0 {PRIMARY};
         transition: all 0.1s;
-        color: #1a1a1a !important;
-    }
-    .stButton button:active {
+    }}
+    .stButton button:active {{
         transform: translateY(2px);
-        box-shadow: 0 2px 0 #333333;
-    }
-    /* 決定ボタン：目立つが眩しくない黄色 */
-    div[data-testid="stBaseButton-primary"] button {
-        background-color: #ffcc00 !important;
-        box-shadow: 0 4px 0 #997a00;
-    }
+        box-shadow: 0 2px 0 {PRIMARY};
+    }}
+    
+    /* 決定ボタン（Primary） */
+    div[data-testid="stBaseButton-primary"] button {{
+        background-color: {PRIMARY} !important;
+        color: {BG_DARK} !important; /* 背景が青なので文字は紺で抜く */
+        box-shadow: 0 4px 0 #2B86E0;
+    }}
 
-    /* カードパネル：Marumie風の角丸と影 */
-    .game-card {
-        background-color: #ffffff;
-        border: 2px solid #222222;
-        border-radius: 20px;
-        padding: 18px;
-        margin-bottom: 12px;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+    /* ゲームカード：家計簿のログのようなパネル */
+    .game-card {{
+        background-color: {CARD_BG};
+        border: 2px solid #2B3A55;
+        border-radius: 18px;
+        padding: 16px;
+        margin-bottom: 8px;
         text-align: center;
-    }
-    /* 自分のカード：視認性の高い水色パネル */
-    .my-card-panel {
-        background-color: #d1e9ff !important;
-        border: 3px solid #0056b3 !important;
-    }
-    .card-text {
-        font-size: 1.2em;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }}
+    /* 自分のカード：家計簿のタグのような強調色 */
+    .my-card-panel {{
+        background-color: rgba(77, 166, 255, 0.15) !important;
+        border: 2px solid {PRIMARY} !important;
+    }}
+    .card-text {{
+        font-size: 1.25em;
         font-weight: 900;
-        color: #000000;
+        color: #FFFFFF;
         margin-bottom: 4px;
-    }
-    .player-sub {
-        font-size: 0.85em;
-        color: #444444;
+    }}
+    .player-sub {{
+        font-size: 0.8rem;
+        color: #8E9AAF;
         font-weight: 700;
-    }
+    }}
 
-    /* 参加者タグ：丸みのあるクリーンなデザイン */
-    .player-tag {
-        background-color: #ffffff;
-        padding: 6px 14px;
-        border-radius: 12px;
+    /* 参加者タグ：家計簿のcat-tag風 */
+    .player-tag {{
         display: inline-block;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        background-color: rgba(77, 166, 255, 0.1);
+        color: {PRIMARY};
+        border: 1px solid rgba(77, 166, 255, 0.3);
         margin: 4px;
-        border: 2px solid #333333;
-        font-weight: 800;
-        font-size: 0.9em;
-    }
+    }}
+    
+    /* 水平線の透過度調整 */
+    hr {{ opacity: 0.2; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -100,9 +112,9 @@ if "my_name" not in st.session_state:
     st.session_state.my_name = ""
 
 if not st.session_state.my_name:
-    st.title("🎨 ito Online")
-    name = st.text_input("あなたの名前", placeholder="例：ひょうと")
-    if st.button("ゲームに参加する", type="primary") and name:
+    st.title("🐱 ito Online")
+    name = st.text_input("ニックネームを入力")
+    if st.button("ゲームに参加", type="primary") and name:
         p_list = data.get('player_list', [])
         if name not in p_list:
             p_list.append(name)
@@ -113,24 +125,23 @@ if not st.session_state.my_name:
 
 # --- 4. 待機画面 (SETUP) ---
 if data['status'] == "SETUP":
-    st.title("👥 待機中")
+    st.subheader("👥 待機中のメンバー")
     players = data.get('player_list', [])
     tags_html = "".join([f"<span class='player-tag'>👤 {p}</span>" for p in players])
     st.markdown(tags_html, unsafe_allow_html=True)
 
     st.divider()
-    with st.container():
-        st.subheader("🛠️ ルーム設定")
-        topic = st.text_input("お題", value=data.get('topic', ''), placeholder="例：人気の食べ物")
-        h_count = st.number_input("手札の枚数", 1, 5, value=int(data.get('hand_count', 1)))
-        if st.button("この設定で開始！", type="primary"):
-            set_data({"topic": topic, "status": "PLAYING", "table_data": [], "hand_count": h_count})
-            st.session_state.pop("my_hand", None)
-            st.rerun()
+    st.subheader("🛠️ ルーム設定")
+    topic = st.text_input("お題", value=data.get('topic', ''))
+    h_count = st.number_input("手札の枚数", 1, 5, value=int(data.get('hand_count', 1)))
+    if st.button("ゲームを開始する", type="primary"):
+        set_data({"topic": topic, "status": "PLAYING", "table_data": [], "hand_count": h_count})
+        st.session_state.pop("my_hand", None)
+        st.rerun()
 
 # --- 5. ゲーム画面 (PLAYING) ---
 elif data['status'] == "PLAYING":
-    st.markdown(f"<h2 style='text-align: center; color: #1a1a1a;'>🃏 {data['topic']}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align: center; color: {PRIMARY} !important;'>🃏 {data['topic']}</h2>", unsafe_allow_html=True)
     table = data['table_data']
     h_count = data.get('hand_count', 1)
 
@@ -147,7 +158,7 @@ elif data['status'] == "PLAYING":
 
     if "selected_num" in st.session_state:
         st.markdown(f"**選択中: {st.session_state.selected_num}**")
-        c_name = st.text_input("言葉で表現すると？", placeholder="例：オムライス")
+        c_name = st.text_input("言葉で表現すると？", placeholder="例：ラーメン")
         if st.button("場に出す", type="primary") and c_name:
             table.append({"name": c_name, "num": st.session_state.selected_num, "player": st.session_state.my_name})
             st.session_state.my_hand.pop(st.session_state.selected_idx)
@@ -156,7 +167,7 @@ elif data['status'] == "PLAYING":
 
     # 場のエリア
     st.divider()
-    st.markdown("### 🖼️ 場の状況 (上が小さい)")
+    st.caption("🖼️ 場の状況 (上が小さい)")
     for i, card in enumerate(table):
         is_mine = card['player'] == st.session_state.my_name
         label = f"【{card['num']}】 {card['name']}" if is_mine else f"【？】 {card['name']}"
