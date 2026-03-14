@@ -1,1 +1,0 @@
-# wt-rank-battle-sim
