@@ -3,25 +3,82 @@ from supabase import create_client, Client
 import random
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. CSSによるモバイルUI・色調整 ---
+# --- 1. モダンWebゲーム風 CSS ---
 st.set_page_config(page_title="ito Mobile", layout="centered")
 st.markdown("""
     <style>
-    .stButton button { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; color: #000000 !important; }
-    .card-box { border: 3px solid #333333; padding: 15px; border-radius: 15px; text-align: center; margin-bottom: 5px; color: #000000 !important; font-size: 1.1em; background-color: #ffffff; }
-    .my-card { background-color: #bbdefb !important; border-color: #0d47a1 !important; }
-    .stCaption { color: #333333 !important; font-weight: bold; text-align: center; margin-bottom: 15px; }
-    .player-tag { background-color: #f0f2f6; padding: 5px 10px; border-radius: 15px; display: inline-block; margin: 2px; border: 1px solid #ccc; color: #333; }
+    /* 全体の背景色を少しグレーにしてカードを引き立てる */
+    .stApp { background-color: #f7f9fc; }
+    
+    /* ボタンの共通スタイル：立体感と丸み */
+    .stButton button {
+        width: 100%;
+        border-radius: 14px;
+        height: 3.8em;
+        font-weight: 800;
+        font-size: 1.1em;
+        border: none;
+        box-shadow: 0 4px 0 #cccccc; /* 下に立体的な影 */
+        transition: all 0.1s;
+        color: #1a1a1a !important;
+        background-color: #ffffff;
+    }
+    .stButton button:active {
+        transform: translateY(3px); /* 押した時に沈む演出 */
+        box-shadow: 0 1px 0 #cccccc;
+    }
+    /* 決定ボタン（Primary）の色 */
+    div[data-testid="stBaseButton-primary"] button {
+        background-color: #ffd600 !important; /* 黄色で目立たせる */
+        box-shadow: 0 4px 0 #b29600;
+    }
+
+    /* カード風パネルのデザイン */
+    .card-container {
+        background-color: #ffffff;
+        border: 2px solid #e0e0e0;
+        border-radius: 20px;
+        padding: 20px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        text-align: center;
+    }
+    .my-card-panel {
+        background-color: #e3f2fd !important; /* 爽やかな水色 */
+        border: 2px solid #2196f3 !important;
+    }
+    .card-title {
+        color: #1a1a1a;
+        font-size: 1.3em;
+        font-weight: 900;
+        margin-bottom: 5px;
+    }
+    .player-name {
+        font-size: 0.9em;
+        color: #666666;
+        font-weight: 600;
+    }
+    /* 参加者タグ */
+    .player-tag {
+        background-color: #ffffff;
+        padding: 8px 16px;
+        border-radius: 50px;
+        display: inline-block;
+        margin: 4px;
+        border: 2px solid #e0e0e0;
+        font-weight: bold;
+        color: #333;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 初期設定 & Supabase ---
+# --- 2. 接続設定 (前回と同様) ---
 if "supabase" not in st.session_state:
     st.session_state.supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = st.session_state.supabase
 ROOM_ID = 1
-st_autorefresh(interval=3000, key="datarefresh") # 3秒に短縮してリアルタイム性アップ
+st_autorefresh(interval=3500, key="datarefresh")
 
 def get_data():
     res = supabase.table("ito_rooms").select("*").eq("id", ROOM_ID).execute()
@@ -31,132 +88,101 @@ def set_data(updates):
 
 data = get_data()
 
-# --- 3. ログイン・参加処理 ---
+# --- 3. 参加フェーズ ---
 if "my_name" not in st.session_state:
     st.session_state.my_name = ""
 
 if not st.session_state.my_name:
-    st.title("🎨 ito Mobile")
-    name = st.text_input("表示名を入力してください")
-    if st.button("参加する") and name:
-        # DBの参加者リストに自分を追加
-        current_players = data.get('player_list', [])
-        if name not in current_players:
-            current_players.append(name)
-            set_data({"player_list": current_players})
+    st.title("🎨 ito Online")
+    name = st.text_input("名前を入力", placeholder="ニックネーム")
+    if st.button("ゲームに参加する", type="primary") and name:
+        p_list = data.get('player_list', [])
+        if name not in p_list:
+            p_list.append(name)
+            set_data({"player_list": p_list})
         st.session_state.my_name = name
         st.rerun()
     st.stop()
 
-# --- 4. 画面表示 (SETUP) ---
+# --- 4. 待機画面 (SETUP) ---
 if data['status'] == "SETUP":
-    st.title("⚙️ ルーム待機中")
+    st.title("🎮 ルーム待機中")
     
-    # 参加者の表示
-    st.subheader("👥 現在の参加者")
+    st.markdown("### 👥 参加しているメンバー")
     players = data.get('player_list', [])
-    if players:
-        html_players = "".join([f"<span class='player-tag'>{p}</span>" for p in players])
-        st.markdown(html_players, unsafe_allow_html=True)
-    else:
-        st.write("待機中...")
+    tags_html = "".join([f"<span class='player-tag'>{p}</span>" for p in players])
+    st.markdown(tags_html, unsafe_allow_html=True)
 
     st.divider()
-    st.subheader("ホスト設定")
-    topic = st.text_input("お題", value=data.get('topic', ''), placeholder="例：怖いもの")
-    h_count = st.number_input("手札枚数", 1, 5, value=int(data.get('hand_count', 1)))
-    
-    if st.button("この設定でゲーム開始！", type="primary"):
-        set_data({
-            "topic": topic, 
-            "status": "PLAYING", 
-            "table_data": [], 
-            "hand_count": h_count
-        })
-        st.session_state.pop("my_hand", None) # 自分の手札をリセット
-        st.rerun()
+    with st.container():
+        st.markdown("### 🛠️ ホスト設定")
+        topic = st.text_input("今日のお題は？", value=data.get('topic', ''))
+        h_count = st.number_input("配るカードの枚数", 1, 5, value=int(data.get('hand_count', 1)))
+        if st.button("この設定で開始！", type="primary"):
+            set_data({"topic": topic, "status": "PLAYING", "table_data": [], "hand_count": h_count})
+            st.session_state.pop("my_hand", None)
+            st.rerun()
 
-# --- 5. 画面表示 (PLAYING) ---
+# --- 5. ゲーム画面 (PLAYING) ---
 elif data['status'] == "PLAYING":
-    st.title(f"🃏 {data['topic']}")
+    st.markdown(f"<h1 style='text-align: center;'>🃏 {data['topic']}</h1>", unsafe_allow_html=True)
     table = data['table_data']
-    # 重要：各自が選んだ数ではなく、DBに保存された「公式の枚数」を使う
-    sync_hand_count = data.get('hand_count', 1)
+    h_count = data.get('hand_count', 1)
 
-    # 手札の生成（DBの枚数に従う）
     if "my_hand" not in st.session_state:
-        # 全員が同じDBのhand_countを参照して手札を作成
-        st.session_state.my_hand = sorted([random.randint(1, 100) for _ in range(sync_hand_count)])
-    
-    my_cards_on_table = [c for c in table if c['player'] == st.session_state.my_name]
+        st.session_state.my_hand = sorted([random.randint(1, 100) for _ in range(h_count)])
     
     # 手札エリア
-    st.subheader(f"📋 あなたの手札 ({len(st.session_state.my_hand)}枚)")
-    if st.session_state.my_hand:
-        cols = st.columns(len(st.session_state.my_hand))
-        for i, num in enumerate(st.session_state.my_hand):
-            if cols[i].button(f"{num}", key=f"hand_{i}"):
-                st.session_state.selected_num = num
-                st.session_state.selected_idx = i
+    st.markdown("### 📋 あなたの手札")
+    cols = st.columns(len(st.session_state.my_hand)) if st.session_state.my_hand else [st.empty()]
+    for i, num in enumerate(st.session_state.my_hand):
+        if cols[i].button(f"{num}", key=f"h_{i}"):
+            st.session_state.selected_num = num
+            st.session_state.selected_idx = i
 
-        if "selected_num" in st.session_state:
-            st.markdown(f"選択中: **{st.session_state.selected_num}**")
-            c_name = st.text_input("名前をつけて場に出す")
-            if st.button("確定") and c_name:
-                if len(my_cards_on_table) < sync_hand_count:
-                    table.append({
-                        "name": c_name, 
-                        "num": st.session_state.selected_num, 
-                        "player": st.session_state.my_name
-                    })
-                    st.session_state.my_hand.pop(st.session_state.selected_idx)
-                    del st.session_state.selected_num
-                    set_data({"table_data": table})
-                    st.rerun()
-                else:
-                    st.error(f"出せるのは{sync_hand_count}枚までです。")
-    
-    # 場のエリア（縦並び）
+    if "selected_num" in st.session_state:
+        st.markdown(f"**選択中: {st.session_state.selected_num}**")
+        c_name = st.text_input("この数字を言葉にすると？")
+        if st.button("場に出す", type="primary") and c_name:
+            table.append({"name": c_name, "num": st.session_state.selected_num, "player": st.session_state.my_name})
+            st.session_state.my_hand.pop(st.session_state.selected_idx)
+            del st.session_state.selected_num
+            set_data({"table_data": table}); st.rerun()
+
+    # 場のエリア
     st.divider()
-    st.subheader("🖼️ 場の状況 (上:小 ↓ 下:大)")
+    st.markdown("### 🖼️ 場の状況 (上が小さい)")
     for i, card in enumerate(table):
         is_mine = card['player'] == st.session_state.my_name
         label = f"【{card['num']}】 {card['name']}" if is_mine else f"【？】 {card['name']}"
-        st.markdown(f"<div class='card-box {'my-card' if is_mine else ''}'><b>{label}</b></div>", unsafe_allow_html=True)
-        st.caption(f"👤 {card['player']}")
+        
+        # カスタムHTMLカード
+        st.markdown(f"""
+            <div class='card-container {'my-card-panel' if is_mine else ''}'>
+                <div class='card-title'>{label}</div>
+                <div class='player-name'>👤 {card['player']}</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         if is_mine:
-            c1, c2, c3 = st.columns(3)
-            if c1.button("⬆️", key=f"U_{i}") and i > 0:
-                table[i], table[i-1] = table[i-1], table[i]
-                set_data({"table_data": table}); st.rerun()
-            if c2.button("↩️ 回収", key=f"Ret_{i}"):
+            c1, c2, c3 = st.columns([1,2,1])
+            c1.button("⬆️", key=f"u_{i}") if i > 0 else c1.empty()
+            if c2.button("↩️ 回収", key=f"r_{i}"):
                 st.session_state.my_hand.append(card['num'])
-                table.pop(i)
-                set_data({"table_data": table}); st.rerun()
-            if c3.button("⬇️", key=f"D_{i}") and i < len(table)-1:
-                table[i], table[i+1] = table[i+1], table[i]
-                set_data({"table_data": table}); st.rerun()
+                table.pop(i); set_data({"table_data": table}); st.rerun()
+            c3.button("⬇️", key=f"d_{i}") if i < len(table)-1 else c3.empty()
 
-    if st.button("全員完了！結果を見る", type="primary"):
-        set_data({"status": "OPEN"})
-        st.rerun()
+    if st.button("全員並べたので結果を見る！", type="primary"):
+        set_data({"status": "OPEN"}); st.rerun()
 
-# --- 6. 画面表示 (OPEN) ---
+# --- 6. 結果発表 (OPEN) ---
 elif data['status'] == "OPEN":
-    st.title("🎊 結果発表")
+    st.title("🎊 答え合わせ")
     table = data['table_data']
-    success = True
-    for i in range(len(table)):
-        st.subheader(f"{i+1}. {table[i]['name']} : {table[i]['num']}")
-        st.caption(f"by {table[i]['player']}")
-        if i > 0 and table[i]['num'] < table[i-1]['num']: success = False
+    for i, card in enumerate(table):
+        st.markdown(f"<div class='card-container'><h3>{card['name']} : {card['num']}</h3><small>{card['player']}</small></div>", unsafe_allow_html=True)
     
-    if success: st.balloons(); st.success("大成功！")
-    else: st.error("失敗...")
-    
-    if st.button("もう一度遊ぶ（リセット）"):
-        # 次のゲームのために参加者リスト以外をリセット
+    if st.button("もう一度遊ぶ", type="primary"):
         set_data({"status": "SETUP", "table_data": [], "topic": "", "hand_count": 1})
-        st.session_state.pop("my_hand", None)
+        st.session_state.my_hand = []
         st.rerun()
