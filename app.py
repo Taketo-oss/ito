@@ -21,7 +21,7 @@ if "my_name" not in st.session_state:
     st.session_state.my_name = ""
 
 if not st.session_state.my_name:
-    st.title("🎨 ito オンライン自作版")
+    st.title("ito")
     name = st.text_input("あなたの表示名を入力してください")
     if st.button("参加する"):
         if name:
