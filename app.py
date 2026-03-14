@@ -3,10 +3,10 @@ from supabase import create_client, Client
 import random
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. 家計簿アプリ風 UIカスタムCSS ---
+# --- 1. 家計簿アプリ風 UIカスタムCSS (配色完全移植) ---
 st.set_page_config(page_title="ito Mobile", layout="centered")
 
-# 家計簿アプリのカラーパレットを定義
+# カラー定義
 PRIMARY = "#4DA6FF"   # スカイブルー
 BG_DARK = "#0D1B2A"   # 深い紺色
 CARD_BG = "#1B263B"   # 少し明るい紺色
@@ -14,15 +14,10 @@ TEXT_COLOR = "#E0E1DD" # 青みのある白
 
 st.markdown(f"""
     <style>
-    /* 全体の背景と文字色 */
     .stApp {{ background-color: {BG_DARK}; color: {TEXT_COLOR}; }}
-    
-    /* 標準テキストの色の強制 */
     html, body, [data-testid="stWidgetLabel"], .stMarkdown p, h1, h2, h3 {{
         color: {TEXT_COLOR} !important;
     }}
-
-    /* ボタン：家計簿アプリ風のスカイブルー基調 */
     .stButton button {{
         width: 100%;
         border-radius: 12px;
@@ -38,15 +33,11 @@ st.markdown(f"""
         transform: translateY(2px);
         box-shadow: 0 2px 0 {PRIMARY};
     }}
-    
-    /* 決定ボタン（Primary） */
     div[data-testid="stBaseButton-primary"] button {{
         background-color: {PRIMARY} !important;
-        color: {BG_DARK} !important; /* 背景が青なので文字は紺で抜く */
+        color: {BG_DARK} !important;
         box-shadow: 0 4px 0 #2B86E0;
     }}
-
-    /* ゲームカード：家計簿のログのようなパネル */
     .game-card {{
         background-color: {CARD_BG};
         border: 2px solid #2B3A55;
@@ -56,7 +47,6 @@ st.markdown(f"""
         text-align: center;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }}
-    /* 自分のカード：家計簿のタグのような強調色 */
     .my-card-panel {{
         background-color: rgba(77, 166, 255, 0.15) !important;
         border: 2px solid {PRIMARY} !important;
@@ -72,8 +62,6 @@ st.markdown(f"""
         color: #8E9AAF;
         font-weight: 700;
     }}
-
-    /* 参加者タグ：家計簿のcat-tag風 */
     .player-tag {{
         display: inline-block;
         padding: 6px 14px;
@@ -85,13 +73,11 @@ st.markdown(f"""
         border: 1px solid rgba(77, 166, 255, 0.3);
         margin: 4px;
     }}
-    
-    /* 水平線の透過度調整 */
     hr {{ opacity: 0.2; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 接続設定 ---
+# --- 2. 接続・データ取得 (共通) ---
 if "supabase" not in st.session_state:
     st.session_state.supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
@@ -107,12 +93,12 @@ def set_data(updates):
 
 data = get_data()
 
-# --- 3. 参加フェーズ ---
 if "my_name" not in st.session_state:
     st.session_state.my_name = ""
 
+# ログイン・参加
 if not st.session_state.my_name:
-    st.title("🐱 ito Online")
+    st.title("🎨 ito Online")
     name = st.text_input("ニックネームを入力")
     if st.button("ゲームに参加", type="primary") and name:
         p_list = data.get('player_list', [])
@@ -123,15 +109,13 @@ if not st.session_state.my_name:
         st.rerun()
     st.stop()
 
-# --- 4. 待機画面 (SETUP) ---
+# --- 3. 画面分岐 ---
 if data['status'] == "SETUP":
     st.subheader("👥 待機中のメンバー")
     players = data.get('player_list', [])
     tags_html = "".join([f"<span class='player-tag'>👤 {p}</span>" for p in players])
     st.markdown(tags_html, unsafe_allow_html=True)
-
     st.divider()
-    st.subheader("🛠️ ルーム設定")
     topic = st.text_input("お題", value=data.get('topic', ''))
     h_count = st.number_input("手札の枚数", 1, 5, value=int(data.get('hand_count', 1)))
     if st.button("ゲームを開始する", type="primary"):
@@ -139,7 +123,6 @@ if data['status'] == "SETUP":
         st.session_state.pop("my_hand", None)
         st.rerun()
 
-# --- 5. ゲーム画面 (PLAYING) ---
 elif data['status'] == "PLAYING":
     st.markdown(f"<h2 style='text-align: center; color: {PRIMARY} !important;'>🃏 {data['topic']}</h2>", unsafe_allow_html=True)
     table = data['table_data']
@@ -165,7 +148,7 @@ elif data['status'] == "PLAYING":
             del st.session_state.selected_num
             set_data({"table_data": table}); st.rerun()
 
-    # 場のエリア
+    # 場のエリア (問題の箇所を修正)
     st.divider()
     st.caption("🖼️ 場の状況 (上が小さい)")
     for i, card in enumerate(table):
@@ -181,22 +164,29 @@ elif data['status'] == "PLAYING":
         
         if is_mine:
             c1, c2, c3 = st.columns([1,2,1])
-            c1.button("⬆️", key=f"u_{i}") if i > 0 else c1.empty()
+            # ⬆️ ボタン
+            if i > 0:
+                if c1.button("⬆️", key=f"u_{i}"):
+                    table[i], table[i-1] = table[i-1], table[i]
+                    set_data({"table_data": table}); st.rerun()
+            # ↩️ 回収ボタン
             if c2.button("↩️ 回収", key=f"r_{i}"):
                 st.session_state.my_hand.append(card['num'])
                 table.pop(i); set_data({"table_data": table}); st.rerun()
-            c3.button("⬇️", key=f"d_{i}") if i < len(table)-1 else c3.empty()
+            # ⬇️ ボタン
+            if i < len(table)-1:
+                if c3.button("⬇️", key=f"d_{i}"):
+                    table[i], table[i+1] = table[i+1], table[i]
+                    set_data({"table_data": table}); st.rerun()
 
-    if st.button("全員並べた！OPEN！", type="primary"):
+    if st.button("全員完了！OPEN！", type="primary"):
         set_data({"status": "OPEN"}); st.rerun()
 
-# --- 6. 結果発表 (OPEN) ---
 elif data['status'] == "OPEN":
     st.title("🎊 答え合わせ")
     table = data['table_data']
     for i, card in enumerate(table):
         st.markdown(f"<div class='game-card'><h3>{card['name']} : {card['num']}</h3><small>{card['player']}</small></div>", unsafe_allow_html=True)
-    
     if st.button("もう一度遊ぶ", type="primary"):
         set_data({"status": "SETUP", "table_data": [], "topic": "", "hand_count": 1})
         st.session_state.my_hand = []
