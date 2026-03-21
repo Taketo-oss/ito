@@ -6,7 +6,6 @@ from streamlit_autorefresh import st_autorefresh
 # --- 1. UI設定 (家計簿アプリ風ダークモード) ---
 st.set_page_config(page_title="ito Mobile", layout="centered")
 
-# カラー定義 (家計簿アプリの配色)
 PRIMARY = "#4DA6FF"   # スカイブルー
 BG_DARK = "#0D1B2A"   # 深い紺色
 CARD_BG = "#1B263B"   # 少し明るい紺色
@@ -14,74 +13,36 @@ TEXT_COLOR = "#E0E1DD" # 青みのある白
 
 st.markdown(f"""
     <style>
-    /* 全体の背景と文字色 */
     .stApp {{ background-color: {BG_DARK}; color: {TEXT_COLOR}; }}
     html, body, [data-testid="stWidgetLabel"], .stMarkdown p, h1, h2, h3 {{
         color: {TEXT_COLOR} !important;
     }}
-
-    /* ボタン：立体感のあるスカイブルー */
     .stButton button {{
-        width: 100%;
-        border-radius: 12px;
-        height: 3.8em;
-        font-weight: 800;
-        border: 2px solid {PRIMARY} !important;
-        background-color: {CARD_BG};
-        color: {PRIMARY} !important;
-        box-shadow: 0 4px 0 {PRIMARY};
+        width: 100%; border-radius: 12px; height: 3.8em; font-weight: 800;
+        border: 2px solid {PRIMARY} !important; background-color: {CARD_BG};
+        color: {PRIMARY} !important; box-shadow: 0 4px 0 {PRIMARY};
         transition: all 0.1s;
     }}
-    .stButton button:active {{
-        transform: translateY(2px);
-        box-shadow: 0 2px 0 {PRIMARY};
-    }}
-    
-    /* 決定ボタン（Primary） */
+    .stButton button:active {{ transform: translateY(2px); box-shadow: 0 2px 0 {PRIMARY}; }}
     div[data-testid="stBaseButton-primary"] button {{
-        background-color: {PRIMARY} !important;
-        color: {BG_DARK} !important;
+        background-color: {PRIMARY} !important; color: {BG_DARK} !important;
         box-shadow: 0 4px 0 #2B86E0;
     }}
-
-    /* ゲームカード：家計簿パネル風 */
     .game-card {{
-        background-color: {CARD_BG};
-        border: 2px solid #2B3A55;
-        border-radius: 18px;
-        padding: 16px;
-        margin-bottom: 8px;
-        text-align: center;
+        background-color: {CARD_BG}; border: 2px solid #2B3A55;
+        border-radius: 18px; padding: 16px; margin-bottom: 8px; text-align: center;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }}
-    /* 自分のカード */
     .my-card-panel {{
         background-color: rgba(77, 166, 255, 0.15) !important;
         border: 2px solid {PRIMARY} !important;
     }}
-    .card-text {{
-        font-size: 1.25em;
-        font-weight: 900;
-        color: #FFFFFF;
-        margin-bottom: 4px;
-    }}
-    .player-sub {{
-        font-size: 0.8rem;
-        color: #8E9AAF;
-        font-weight: 700;
-    }}
-
-    /* 参加者タグ */
+    .card-text {{ font-size: 1.25em; font-weight: 900; color: #FFFFFF; margin-bottom: 4px; }}
+    .player-sub {{ font-size: 0.8rem; color: #8E9AAF; font-weight: 700; }}
     .player-tag {{
-        display: inline-block;
-        padding: 6px 14px;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: bold;
-        background-color: rgba(77, 166, 255, 0.1);
-        color: {PRIMARY};
-        border: 1px solid rgba(77, 166, 255, 0.3);
-        margin: 4px;
+        display: inline-block; padding: 6px 14px; border-radius: 8px;
+        font-size: 0.85rem; font-weight: bold; background-color: rgba(77, 166, 255, 0.1);
+        color: {PRIMARY}; border: 1px solid rgba(77, 166, 255, 0.3); margin: 4px;
     }}
     hr {{ opacity: 0.2; }}
     </style>
@@ -94,47 +55,49 @@ if "supabase" not in st.session_state:
 supabase = st.session_state.supabase
 ROOM_ID = 1
 
-# 自動更新 (安定のため4秒)
-st_autorefresh(interval=4000, key="ito_refresh_stable")
+st_autorefresh(interval=4000, key="ito_refresh_v4")
 
 def get_data():
     try:
         res = supabase.table("ito_rooms").select("*").eq("id", ROOM_ID).execute()
         return res.data[0]
-    except:
-        return None
+    except: return None
 
 def set_data(updates):
-    try:
-        supabase.table("ito_rooms").update(updates).eq("id", ROOM_ID).execute()
-    except:
-        st.error("データの送信に失敗しました。")
+    try: supabase.table("ito_rooms").update(updates).eq("id", ROOM_ID).execute()
+    except: st.error("データの送信に失敗しました。")
 
 data = get_data()
 if not data:
     st.warning("Supabaseとの接続を確認中...")
     st.stop()
 
-# セッション変数の安全な初期化
+# --- 3. 強制ログアウト(キック)監視ロジック ---
 if "my_name" not in st.session_state: st.session_state.my_name = ""
 
-# --- 3. 退出処理 ---
-def logout():
-    if st.session_state.my_name:
-        p_list = list(data.get('player_list', []))
-        if st.session_state.my_name in p_list:
-            p_list.remove(st.session_state.my_name)
-            set_data({"player_list": p_list})
+# ログインしているが、DBのリストから名前が消えている場合
+if st.session_state.my_name:
+    p_list = data.get('player_list', [])
+    if st.session_state.my_name not in p_list:
         st.session_state.my_name = ""
         if "my_hand" in st.session_state: del st.session_state.my_hand
+        st.warning("ルームから退出させられました。")
         st.rerun()
 
-# サイドバーに退出ボタンを表示
+# 退出処理
+def logout():
+    p_list = list(data.get('player_list', []))
+    if st.session_state.my_name in p_list:
+        p_list.remove(st.session_state.my_name)
+        set_data({"player_list": p_list})
+    st.session_state.my_name = ""
+    if "my_hand" in st.session_state: del st.session_state.my_hand
+    st.rerun()
+
 with st.sidebar:
     if st.session_state.my_name:
         st.write(f"👤 **{st.session_state.my_name}**")
-        if st.button("ゲームから退出"):
-            logout()
+        if st.button("ゲームから退出"): logout()
 
 # --- 4. 参加フェーズ ---
 if not st.session_state.my_name:
@@ -156,6 +119,19 @@ if data['status'] == "SETUP":
     tags_html = "".join([f"<span class='player-tag'>👤 {p}</span>" for p in players])
     st.markdown(tags_html, unsafe_allow_html=True)
 
+    # 管理メニュー：ユーザーを選択して強制ログアウトさせる
+    with st.expander("🛠 管理者メニュー（キック操作）"):
+        kick_targets = st.multiselect("退出させるユーザーを選択", [p for p in players if p != st.session_state.my_name])
+        if st.button("選択したユーザーをキックする"):
+            new_list = [p for p in players if p not in kick_targets]
+            set_data({"player_list": new_list})
+            st.success("指定したユーザーを削除しました。")
+            st.rerun()
+        
+        if st.button("参加者リストを全リセット（自分以外）"):
+            set_data({"player_list": [st.session_state.my_name]})
+            st.rerun()
+
     st.divider()
     st.subheader("🛠️ ルーム設定")
     topic = st.text_input("お題", value=data.get('topic', ''), placeholder="例：人気の食べ物")
@@ -172,7 +148,6 @@ elif data['status'] == "PLAYING":
     table = data['table_data']
     official_count = int(data.get('hand_count', 1))
 
-    # 手札の厳密同期
     my_on_table = [c for c in table if c['player'] == st.session_state.my_name]
     if "my_hand" not in st.session_state or (len(st.session_state.my_hand) + len(my_on_table) != official_count):
         st.session_state.my_hand = sorted([random.randint(1, 100) for _ in range(max(0, official_count - len(my_on_table)))])
@@ -211,28 +186,21 @@ elif data['status'] == "PLAYING":
     if st.button("全員完了！答え合わせへ", type="primary"):
         set_data({"status": "OPEN"}); st.rerun()
 
-# --- 7. OPEN 画面 (シンプル全公開版) ---
+# --- 7. OPEN 画面 ---
 elif data['status'] == "OPEN":
     st.markdown("<h1 style='text-align: center;'>🎊 答え合わせ</h1>", unsafe_allow_html=True)
     table = data['table_data']
     
-    # 成功判定
     prev_num, success = 0, True
     for card in table:
         if card['num'] < prev_num: success = False; break
         prev_num = card['num']
     
-    if success: st.balloons(); st.success("🎉 大成功！価値観がピッタリです！")
-    else: st.error("😢 失敗... 価値観がズレていたようです。")
+    if success: st.balloons(); st.success("🎉 大成功！")
+    else: st.error("😢 失敗...")
 
-    # 全カードを一気に表示
     for card in table:
-        st.markdown(f"""
-            <div class='game-card'>
-                <div class='card-text'>【{card['num']}】 {card['name']}</div>
-                <div class='player-sub'>👤 {card['player']}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown(f"<div class='game-card'><div class='card-text'>【{card['num']}】 {card['name']}</div><div class='player-sub'>👤 {card['player']}</div></div>", unsafe_allow_html=True)
     
     st.divider()
     if st.button("リセットして戻る", type="primary"):
